@@ -13,9 +13,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import joblib # For saving/loading models and preprocessors
 import os
-from sklearn.svm import SVC
-from xgboost import XGBClassifier
-import warnings
+import streamlit.components.v1 as components
 
 # Create the 'models' directory if it doesn't exist
 models_dir = 'models'
@@ -27,6 +25,7 @@ if not os.path.exists(models_dir):
 # --- 1. Data Loading and Simulation (More Realistic Data) ---
 # we'll simulate a more complex dataset to demonstrate improved functionalities.
 
+st.title("❤️‍🩹 East Africa Mental Health & Suicide Risk")
 
 @st.cache_data
 def load_and_simulate_data():
@@ -56,6 +55,8 @@ def load_and_simulate_data():
     }
     
     df = pd.DataFrame(data)
+    
+   
 
     # Introduce some correlations for a more realistic dataset
     # Higher unemployment -> higher suicide rates
@@ -145,8 +146,8 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 
 @st.cache_resource # Cache the trained model
 def train_and_evaluate_model(X_train_data, y_train_data, X_test_data, y_test_data):
-    st.subheader("Model Training & Evaluation")
-    st.write("Training a RandomForestClassifier for suicide rate in countries.")
+    st.subheader ("Model Training & Evaluation")
+    st.write("Training a model on suicide rate per country .")
 
     # Model Selection & Hyperparameter Tuning (Example with GridSearchCV)
     # For a real project, you'd iterate through more models and parameters
@@ -167,7 +168,7 @@ def train_and_evaluate_model(X_train_data, y_train_data, X_test_data, y_test_dat
     y_pred = best_model.predict(X_test_data)
     y_proba = best_model.predict_proba(X_test_data)[:, 1] # Probability of High_Risk (class 1)
 
-    st.write("### Model Performance Report (on Test Set):")
+    st.write("Model Performance Report (on Test Set):")
     st.text(classification_report(y_test_data, y_pred))
 
     st.write(f"Accuracy: {accuracy_score(y_test_data, y_pred):.2f}")
@@ -182,11 +183,11 @@ def train_and_evaluate_model(X_train_data, y_train_data, X_test_data, y_test_dat
             'Feature': X_train_data.columns,
             'Importance': best_model.feature_importances_
         }).sort_values('Importance', ascending=False)
-        st.write("### Feature Importance:")
+        st.write(" Feature Importance:")
         st.dataframe(feature_importance.head(10))
 
         fig_feature_imp = px.bar(feature_importance.head(10), x='Importance', y='Feature', orientation='h',
-                                 title='Top 10 Feature Importances',
+                                 title='Top 10 Feature Importances Affecting Mental Health',
                                  labels={'Importance': 'Importance Score', 'Feature': 'Feature Name'})
         fig_feature_imp.update_layout(yaxis={'categoryorder':'total ascending'})
         st.plotly_chart(fig_feature_imp, use_container_width=True)
@@ -196,11 +197,6 @@ def train_and_evaluate_model(X_train_data, y_train_data, X_test_data, y_test_dat
 # Run model training and evaluation
 model = train_and_evaluate_model(X_train, y_train, X_test, y_test)
 
-# --- Save Model and Preprocessors (for later prediction in Streamlit) ---
-joblib.dump(model, 'models/trained_rf_model.pkl')
-joblib.dump(scaler, 'models/scaler.pkl')
-joblib.dump(encoder, 'models/encoder.pkl')
-joblib.dump(numerical_imputer, 'models/numerical_imputer.pkl')
 
 # --- Streamlit Application ---
 
@@ -228,29 +224,42 @@ st.markdown("""
         border-radius: 5px;
         padding: 10px 20px;
     }
-    <style>
-    h1, h2, h3, h4 { color: #2c3e50; }
-    .stApp { font-family: 'Segoe UI', sans-serif; }
-    .sidebar .sidebar-content { background-color: #f7f9fb; }
-</style>
 
-    
+    .big-font { font-size:36px !important; font-weight: bold; color: #ff4b4b; }
+    .medium-font { font-size:20px !important; font-weight: bold; }
+    .stApp { background: #f8f9fa; }
+    h1, h2, h3 { color: #1f77b4; }
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    .sidebar .sidebar-content {
+        background-color: #e0f7fa;
+    }
+    .css-1aumxhk { padding: 2rem 1rem 1rem 1rem; }
+    </style>
+       
     """, unsafe_allow_html=True)
 
-st.title("❤️‍🩹 East Africa Mental Health & Suicide Risk")
 st.markdown("A data-driven exploration and prediction tool for suicide risk factors.")
-menu = st.sidebar.radio("Navigation", ["Overview", "Insights", "Prediction", "About"])
-if menu == "Overview":
-    ...
 
-col1, col2, col3 = st.columns(3)
-col1.metric("Countries", df['Country'].nunique())
-col2.metric("Avg Suicide Rate", f"{df['Suicide_Rate'].mean():.1f}/100k")
-col3.metric("High Risk %", f"{df['High_Risk'].mean() * 100:.1f}%")
+with st.sidebar:
+    st.title("🔍 Filter Data")
+    selected_country = st.selectbox("Select Country", ["All"] + sorted(df['Country'].unique().tolist()))
+    selected_age = st.selectbox("Select Age Group", ["All"] + sorted(df['Age_Group'].unique().tolist()))
+    selected_sex = st.selectbox("Select Sex", ["All"] + sorted(df['Sex'].unique().tolist()))
 
+# Apply filters
+filtered_df = df.copy()
+if selected_country != "All":
+    filtered_df = filtered_df[filtered_df['Country'] == selected_country]
+if selected_age != "All":
+    filtered_df = filtered_df[filtered_df['Age_Group'] == selected_age]
+if selected_sex != "All":
+    filtered_df = filtered_df[filtered_df['Sex'] == selected_sex]
 
 # --- Tabbed Interface for better organization ---
-tab1, tab2, tab3, tab4 = st.tabs(["Overview & Trends", "Country Insights", "Risk Prediction", "About"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Overview & Trends", "Country Insights", "Risk Prediction", "About", 'model perfomance'])
 
 with tab1:
     st.header("Overview: Suicide Rates Across East Africa")
@@ -433,56 +442,15 @@ with tab3:
             st.error(f"An error occurred during prediction: {e}")
             st.error("Please check the input values and try again.")
             st.warning("Ensure the data types and format match the expected model input.")
-import plotly.express as px
-country_avg = df.groupby("Country")["Suicide_Rate"].mean().reset_index()
-fig = px.choropleth(country_avg, locations="Country", locationmode="country names", 
-                    color="Suicide_Rate", color_continuous_scale="Reds",
-                    title="Average Suicide Rate by Country")
-st.plotly_chart(fig, use_container_width=True)
-
-import base64
-def download_link(object_to_download, download_filename, link_text):
-    b64 = base64.b64encode(object_to_download.encode()).decode()
-    href = f'<a href="data:file/txt;base64,{b64}" download="{download_filename}">{link_text}</a>'
-    return href
-report = "Risk prediction report..."
-st.markdown(download_link(report, 'report.txt', '📄 Download Report'), unsafe_allow_html=True)
 
 with tab4:
     st.header("About This Project")
     st.markdown("""
-    This interactive dashboard aims to provide insights into suicide rates and related factors in East African countries, with a particular focus on Kenya.
-    
-    **Project Goals:**
-    - To visualize trends and patterns in suicide rates across different demographics and socioeconomic conditions.
-    - To identify potential contributing factors to suicide risk using machine learning.
-    - To offer a predictive tool for estimating suicide risk based on various inputs.
-    - To raise awareness and support data-driven decision-making in mental health initiatives.
-
-    **Data Sources:**
-    * **Simulated Data:** For this demonstration, a synthetic dataset has been generated to illustrate the functionalities. In a real-world application, this would be replaced by actual datasets from sources like:
-        * World Health Organization (WHO) suicide data
-        * Kaggle datasets on global suicide statistics
-        * World Bank data for socioeconomic indicators (GDP, unemployment, education) in African countries.
-        * Humanitarian Data Exchange (HDX) for specific regional/country-level health data.
-
-    **Methodology:**
-    * **Data Preprocessing:** Handling missing values, scaling numerical features, and one-hot encoding categorical variables.
-    * **Feature Engineering:** Creating relevant features (e.g., from combined data).
-    * **Machine Learning Model:** A **Random Forest Classifier** is used to predict the likelihood of a high suicide risk, based on a binary classification (high vs. low risk relative to the median rate). Hyperparameter tuning (using GridSearchCV) is applied to optimize model performance.
-    * **Visualization:** Interactive charts using `Plotly Express` are employed for clear and insightful data representation.
-
-    **Limitations:**
-    * This model is based on **simulated data** for demonstration purposes. Real-world applications require extensive, validated, and granular datasets.
-    * The 'High Risk' classification is based on a **median split** of the suicide rate, which is a simplified approach. A more nuanced classification would involve clinical thresholds or expert definitions.
-    * **Causation vs. Correlation:** The model identifies correlations; it does not imply direct causation.
-    * **Data Availability:** Obtaining comprehensive and high-quality mental health data, especially at sub-national levels in African countries, can be challenging.
-    * **Ethical Considerations:** Predictions should be interpreted with caution and **never** used for individual diagnosis or stigmatization. This tool is for **exploratory data analysis and awareness**, not clinical decision-making.
-
-    **Future Enhancements:**
-    * Integration of actual, larger datasets from diverse sources.
-    * Development of a regression model to predict the exact suicide rate.
-    * Inclusion of more complex features (e.g., healthcare access, poverty indices, conflict indicators).
-    * Advanced natural language processing (NLP) if text-based mental health data becomes available.
-    * Deployment of the model as an API for broader integration.
     """)
+    
+    with tab5:
+      model = train_and_evaluate_model(X_train, y_train, X_test, y_test)
+    joblib.dump(model, 'models/trained_rf_model.pkl')
+    joblib.dump(scaler, 'models/scaler.pkl')
+    joblib.dump(encoder, 'models/encoder.pkl')
+    joblib.dump(numerical_imputer, 'models/numerical_imputer.pkl')
